@@ -1,0 +1,36 @@
+use std::fs::File;
+use std::io::{BufReader, Read};
+use tokio::prelude::*;
+use tokio::{
+    net::{TcpListener, TcpStream},
+    stream::StreamExt,
+};
+
+async fn handle_connection(mut stream: TcpStream) {
+    let mut buffer = [0; 512];
+    stream.read(&mut buffer).await.unwrap();
+    let mut contents = String::new();
+    let f = File::open("/home/vishnu/x.html").expect("Unable to open file");
+    let mut br = BufReader::new(f);
+    br.read_to_string(&mut contents)
+        .expect("Unable to read string");
+    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", contents);
+    stream.write(response.as_bytes()).await.unwrap();
+    stream.flush();
+}
+
+#[tokio::main]
+async fn main() {
+    let mut listener = TcpListener::bind("127.0.0.1:8078").await.unwrap();
+    let mut incoming = listener.incoming();
+    while let Some(stream) = incoming.next().await {
+        match stream {
+            Ok(stream) => {
+                tokio::spawn(async move {
+                    handle_connection(stream).await;
+                });
+            }
+            Err(e) => eprintln!("Error {:?}", e),
+        }
+    }
+}
